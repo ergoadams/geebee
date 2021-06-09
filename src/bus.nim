@@ -34,12 +34,16 @@ proc load8*(address: uint16): uint8 =
     elif address in 0xC000'u16 ..< 0xE000'u16:
         let offset = address - 0xC000'u16
         return wram[offset]
+    elif address == 0xFF0F'u16:
+        return irq_if
     elif address in 0xFF40'u16 .. 0xFF4B'u16:
         let offset = address - 0xFF40'u16
         return ppu_load8(offset)
     elif address in 0xFF80'u16 .. 0xFFFE'u16:
         let offset = address - 0xFF80'u16
         return hram[offset]
+    elif address == 0xFFFF'u16:
+        return irq_ie
     else:
         quit("Unhandled load8 from " & address.toHex(), QuitSuccess)
 
@@ -102,10 +106,6 @@ proc store8*(address: uint16, value: uint8) =
         ppu_store8(offset, value)
     elif address == 0xFF50:
         bios_mapped = false
-    elif address == 0xFF68'u16:
-        echo "GBC palette?"
-    elif address == 0xFF69'u16:
-        echo "GBC palette2?"
     elif address in 0xFF80'u16 .. 0xFFFE'u16:
         let offset = address - 0xFF80'u16
         hram[offset] = value
@@ -122,8 +122,6 @@ proc store16*(address: uint16, value: uint16) =
         let offset = address - 0xC000'u16
         wram[offset + 0] = uint8(value shr 8) 
         wram[offset + 1] = uint8(value and 0xFF)  
-    elif address == 0xFF4F:
-        echo "gbc reg?"
     elif address in 0xFF80'u16 .. 0xFFFE'u16:
         let offset = address - 0xFF80'u16
         hram[offset + 0] = uint8(value shr 8) 
