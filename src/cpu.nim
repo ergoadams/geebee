@@ -373,7 +373,7 @@ proc op_reti() =
     pc = pc or (uint16(load8(sp)) shl 8)
     sp += 1
     irq_ime = true
-    echo "enabled interrupts on reti"
+    #echo "enabled interrupts on reti"
 
 proc op_cp_a_u8() =
     let comp = load8(pc)
@@ -971,6 +971,7 @@ proc trigger_irq() =
         else: 
             echo "multiple irqs?"
             pc
+    #echo "IRQ cause " & $cause
     irq_ime = false
 
 proc cpu_tick*() =
@@ -985,7 +986,8 @@ proc cpu_tick*() =
             if (irq_if and irq_ie) != 0:
                 halted = false
         else:
-            echo "haltbug?"
+            halted = false
+        #    echo "haltbug?"
     timer_tick()
     if check_irq():
         halted = false
