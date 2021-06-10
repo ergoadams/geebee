@@ -5,8 +5,10 @@ import bus, cpu, ppu
 var running = true
 
 let bios_location = "roms/boot.gb"
+let game_location = "roms/blargg/instr_timing.gb"
 #let game_location = "roms/optix/fairylake.gb"
-let game_location = "roms/pokemon_blue.gb"
+#let game_location = "roms/other/dmg-acid2.gb"
+#let game_location = "roms/zelda.gb"
 
 let cycles_per_sec = 4194300'u32
 

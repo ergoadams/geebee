@@ -62,6 +62,9 @@ proc load8*(address: uint16): uint8 =
         return uint8(rom[address])
     elif address in 0x4000'u16 ..< 0x8000'u16: # bank switched rom
         return cart_load8(address)
+    elif address in 0x8000'u16 ..< 0xA000'u16:
+        let offset = address - 0x8000'u16
+        return vram_load8(offset)
     elif address in 0xA000'u16 ..< 0xC000'u16:
         return cart_load8(address)
     elif address in 0xC000'u16 ..< 0xE000'u16:
@@ -71,6 +74,9 @@ proc load8*(address: uint16): uint8 =
         return oam_load(address - 0xFE00'u16)
     elif address == 0xFF00'u16:
         return pad_load8()
+    elif address in 0xFF04'u16 ..< 0xFF08'u16:
+        let offset = address - 0xFF04'u16
+        return timer_load8(offset)
     elif address == 0xFF0F'u16:
         return irq_if
     elif address in 0xFF30'u16 ..< 0xFF40'u16: #sound
@@ -143,7 +149,8 @@ proc store8*(address: uint16, value: uint8) =
         if value == 0x81:
             write(stdout, char(sb))
         else:
-            echo "Unhandled SC value " & value.toHex()
+            discard
+            #echo "Unhandled SC value " & value.toHex()
     elif address in 0xFF04'u16 ..< 0xFF08'u16:
         let offset = address - 0xFF04'u16
         timer_store8(offset, value)
@@ -156,7 +163,13 @@ proc store8*(address: uint16, value: uint8) =
         discard
     elif address in 0xFF40'u16 .. 0xFF4B'u16:
         let offset = address - 0xFF40'u16
-        ppu_store8(offset, value)
+        if offset == 6:
+            var source = uint16(value) shl 8
+            var destination = 0xFE00'u16
+            for i in 0x00'u16 ..< 0xA0'u16:
+                store8(destination + i, load8(source + i)) 
+        else:
+            ppu_store8(offset, value)
     elif address == 0xFF4D'u16:
         echo "write to gbc reg?"
     elif address == 0xFF50:

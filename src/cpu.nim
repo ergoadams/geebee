@@ -195,6 +195,7 @@ proc op_jr_cond() =
         of 2: cond_ok = not flag_c
         else: cond_ok = flag_c
     if cond_ok:
+        remaining_cycles += 4
         pc += offset
 
 proc op_inc_r8() =
@@ -468,6 +469,7 @@ proc op_jp_cond() =
         of 2: cond_ok = not flag_c
         else: cond_ok = flag_c
     if cond_ok:
+        remaining_cycles += 4
         pc = offset
 
 proc op_di() =
@@ -493,6 +495,7 @@ proc op_ret_cond() =
         of 2: cond_ok = not flag_c
         else: cond_ok = flag_c
     if cond_ok:
+        remaining_cycles += 12
         pc = 0
         pc = uint16(load8(sp))
         sp += 1
@@ -533,6 +536,7 @@ proc op_call_cond() =
     let address = load16(pc)
     pc += 2
     if cond_ok: 
+        remaining_cycles += 12
         sp -= 1
         store8(sp, uint8(pc shr 8))
         sp -= 1
@@ -840,7 +844,7 @@ proc execute_opcode() =
     if opcode == 0xCB:
         let opcode2 = fetch_opcode(pc)
         opcode = opcode2
-        remaining_cycles = CB_INSTRUCTION_CYCLES[opcode]
+        remaining_cycles = CB_INSTRUCTION_CYCLES[opcode] + 1
         pc += 1
         case (opcode2 and 0b11000000) shr 6:
             of 0:
@@ -862,7 +866,7 @@ proc execute_opcode() =
             else:
                 quit("Unhandled opcode prefix 0xCB " & (opcode2 and 0b11000000).toHex(), QuitSuccess)
     else:
-        remaining_cycles = INSTRUCTION_CYCLES[opcode]
+        remaining_cycles = INSTRUCTION_CYCLES[opcode] + 1
         if opcode == 0x00: op_nop()
         elif opcode == 0b00001000: op_ld_u16_sp()
         elif opcode == 0b00010000:
@@ -962,15 +966,17 @@ proc trigger_irq() =
     store8(sp, uint8(pc shr 8)) 
     sp -= 1
     store8(sp, uint8(pc and 0xFF))
-    pc = case cause:
-        of 0b00001: 0x0040'u16
-        of 0b00010: 0x0048'u16
-        of 0b00100: 0x0050'u16
-        of 0b01000: 0x0058'u16
-        of 0b10000: 0x0060'u16
-        else: 
-            echo "multiple irqs?"
-            pc
+    if (cause and 0b00001) != 0:
+        pc = 0x0040'u16
+    elif (cause and 0b00010) != 0:
+        pc = 0x0048'u16
+    elif (cause and 0b00100) != 0:
+        pc = 0x0050'u16
+    elif (cause and 0b01000) != 0:
+        pc = 0x0058'u16
+    else:
+        pc = 0x0060'u16
+
     #echo "IRQ cause " & $cause
     irq_ime = false
 
@@ -981,6 +987,7 @@ proc cpu_tick*() =
             pc += 1
             execute_opcode()
         remaining_cycles -= 1
+        timer_tick()
     else:
         if not irq_ime:
             if (irq_if and irq_ie) != 0:
@@ -988,7 +995,7 @@ proc cpu_tick*() =
         else:
             halted = false
         #    echo "haltbug?"
-    timer_tick()
+    
     if check_irq():
         halted = false
         trigger_irq()

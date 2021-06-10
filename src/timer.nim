@@ -1,7 +1,6 @@
 import strutils
 import irq
 
-var timer_div: uint8
 var timer_tima: uint8
 var timer_mod: uint8
 var timer_tac: uint8
@@ -15,7 +14,7 @@ var prev_edge: bool
 
 proc timer_store8*(address: uint16, value: uint8) =
     case address:
-        of 0: timer_div = 0
+        of 0: ticks_div = 0
         of 1: timer_tima = value
         of 2: timer_mod = value
         of 3: 
@@ -28,6 +27,12 @@ proc timer_store8*(address: uint16, value: uint8) =
             timer_tac = value
         else:
             echo "Unhandled timer store8 addr " & address.toHex() & " value " & value.toHex()
+
+proc timer_load8*(address: uint16): uint8 =
+    case address:
+        of 0: return uint8(ticks_div shr 8)
+        else:
+            echo "Unhandled timer load8 addr " & address.toHex()
 
 proc timer_tick*() =
     ticks_div += 1

@@ -1,5 +1,5 @@
 import strutils, csfml
-import irq
+import irq, joypad
 var vram: array[0x2000, uint8]
 
 var lcdc: uint8
@@ -28,32 +28,40 @@ var lyc: uint8
 var scy: uint8
 var scx: uint8
 var bgp: uint8
-var color_index0: uint8
-var color_index1: uint8
-var color_index2: uint8
-var color_index3: uint8
-let color_palette: array[4, array[3, uint8]] = [[247'u8, 190'u8, 247'u8], [231'u8, 134'u8, 134'u8], [119'u8, 51'u8, 231'u8], [44'u8, 44'u8, 150'u8]] # Colors from lightest to darkest
+var color_index0: uint8 = 0
+var color_index1: uint8 = 1
+var color_index2: uint8 = 2
+var color_index3: uint8 = 3
+var color_index1_obp0: uint8 = 1
+var color_index2_obp0: uint8 = 2
+var color_index3_obp0: uint8 = 3
+var color_index1_obp1: uint8 = 1
+var color_index2_obp1: uint8 = 2
+var color_index3_obp1: uint8 = 3
+let color_palette: array[4, array[4, uint8]] = [[247'u8, 190'u8, 247'u8, 255'u8], [231'u8, 134'u8, 134'u8, 255'u8], [119'u8, 51'u8, 231'u8, 255'u8], [44'u8, 44'u8, 150'u8, 255'u8]] # Colors from lightest to darkest
 var tiles: array[384, array[8, array[8, uint8]]]
 var tile_maps: array[2, array[32, array[32, uint8]]]
 var obp0: uint8
 var obp1: uint8
-var sprite_attribute: array[0xA0, uint8]
+var sprite_attribute: array[40, array[4, uint8]]
 # CSFML init
 var screenWidth: cint = 160
 var screenHeight: cint = 144
 let scale_factor: cint = 3
 let videoMode = videoMode(screenWidth*scale_factor, screenHeight*scale_factor)
 let settings = contextSettings(depth=32, antialiasing=8)
-var window = newRenderWindow(videoMode, "Geebee", settings=settings)
+var window* = newRenderWindow(videoMode, "Geebee", settings=settings)
 let bg_clear_col = color(color_palette[0][0], color_palette[0][1], color_palette[0][2])
 window.clear bg_clear_col
 window.display()
 
-var bg_texture = newTexture(cint(256), cint(256))
-var bg_sprite = newSprite(bg_texture)
-var bg_sprite2 = newSprite(bg_texture)
-bg_sprite.scale = vec2(scale_factor, scale_factor)
-bg_sprite2.scale = vec2(scale_factor, scale_factor)
+var screen_buffer: array[160*144*4, uint8]
+var screen_texture = newTexture(cint(160), cint(144))
+var screen_sprite = newSprite(screen_texture)
+screen_sprite.scale = vec2(scale_factor, scale_factor)
+
+proc vram_load8*(address: uint16): uint8 =
+    return vram[address]
 
 proc vram_store8*(address: uint16, value: uint8) =
     vram[address] = value
@@ -68,7 +76,7 @@ proc vram_store8*(address: uint16, value: uint8) =
             if (address and 1) != 0:
                 tile_line[i] = tile_line[i] or (((value and (1'u8 shl (7 - i))) shr (7 - i)) shl 1)
             else:
-                tile_line[i] = tile_line[i] or ((value and (1'u8 shl (7 - i))) shr (7 - i))
+                tile_line[i] = (value and (1'u8 shl (7 - i))) shr (7 - i)
         tiles[tile_index][tile_line_index] = tile_line
     else:
         # Tile maps
@@ -95,7 +103,7 @@ proc ppu_store8*(address: uint16, value: uint8) =
             window_en = (value and (1'u8 shl 5)) != 0
             bg_data_area = (value and (1'u8 shl 4)) != 0
             bg_map_area = (value and (1'u8 shl 3)) shr 3
-
+            #obj_size = (value and (1'u8 shl 2)) != 0 # TODO: fix pls
             obj_en = (value and (1'u8 shl 1)) != 0
             bg_win_en = (value and 1) != 0
         of 0x01:
@@ -110,7 +118,6 @@ proc ppu_store8*(address: uint16, value: uint8) =
             scx = value
         of 0x05:
             lyc = value
-        #of 0x06: oam
         of 0x07: 
             bgp = value
             color_index0 = (value and (0b11'u8 shl 0)) shr 0
@@ -118,9 +125,15 @@ proc ppu_store8*(address: uint16, value: uint8) =
             color_index2 = (value and (0b11'u8 shl 4)) shr 4
             color_index3 = (value and (0b11'u8 shl 6)) shr 6
         of 0x08:
-            obp0 = value
+            obp0 = value and (not 0b11'u8)
+            color_index1_obp0 = (value and (0b11'u8 shl 2)) shr 2
+            color_index2_obp0 = (value and (0b11'u8 shl 4)) shr 4
+            color_index3_obp0 = (value and (0b11'u8 shl 6)) shr 6
         of 0x09:
-            obp1 = value
+            obp1 = value and (not 0b11'u8)
+            color_index1_obp1 = (value and (0b11'u8 shl 2)) shr 2
+            color_index2_obp1 = (value and (0b11'u8 shl 4)) shr 4
+            color_index3_obp1 = (value and (0b11'u8 shl 6)) shr 6
         of 0x0A:
             wy = value
         of 0x0B:
@@ -142,71 +155,138 @@ proc ppu_load8*(address: uint16): uint8 =
             return 0xFF
 
 proc oam_write*(address: uint16, value: uint8) =
-    sprite_attribute[address] = value
+    sprite_attribute[address shr 2][address - ((address shr 2) shl 2)] = value
 
 proc oam_load*(address: uint16): uint8 =
-    return sprite_attribute[address]
+    return sprite_attribute[address shr 2][address - ((address shr 2) shl 2)]
 
-proc render_frame() =
-    let tile_map = tile_maps[bg_map_area]
-    var pixels:  array[256*256*4, uint8]
-    var x_pos: uint32
-    var y_pos: uint32
-    for line in tile_map:
-        x_pos = 0
-    
-        for tile_index in line:
-            var tile: array[8, array[8, uint8]]
+proc draw_scanline() =
+    # Background rendering
+    if bg_win_en:
+        let tile_y = ((scanline + scy) and 0xFF) shr 3 # Each tile is 8 pixels high
+        let tile_map_line = tile_maps[bg_map_area][tile_y]
+        let y_in_tile = ((scanline + scy) and 0xFF) - (tile_y shl 3)
+        var x_pos: int32 = 0 - int32(scx mod 8)
+        var top_limit = 20'u32
+        if scx != 0:
+            top_limit = 21'u32
+        for i in 0 ..< top_limit:
+            let tile_index = tile_map_line[(i + (uint32(scx) shr 3)) and 0x1F]
+            var tile_line: array[8, uint8]
             if bg_data_area:
                 # 8000-8FFF
-                tile = tiles[tile_index]
+                tile_line = tiles[tile_index][y_in_tile]
             else:
                 # 8800-97FF
                 var temp_index = uint16(tile_index)
                 if temp_index < 128:
                     temp_index += 256
-                tile = tiles[temp_index]
-
-            for tile_line in tile:
-                for pixel in tile_line:
+                tile_line = tiles[temp_index][y_in_tile]
+            for pixel in tile_line:
+                if (x_pos >= 0) and (x_pos < 160):
                     let color = case pixel:
                         of 0: color_palette[color_index0]
                         of 1: color_palette[color_index1]
                         of 2: color_palette[color_index2]
                         else: color_palette[color_index3]
-                    pixels[y_pos*256*4 + x_pos*4 + 0] = color[0]
-                    pixels[y_pos*256*4 + x_pos*4 + 1] = color[1]
-                    pixels[y_pos*256*4 + x_pos*4 + 2] = color[2]
-                    pixels[y_pos*256*4 + x_pos*4 + 3] = 255
-                    x_pos += 1
-                x_pos -= 8
-                y_pos += 1           
-            x_pos += 8
-            y_pos -= 8
-        y_pos += 8
+                    screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 0] = color[0]
+                    screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 1] = color[1]
+                    screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 2] = color[2]
+                    screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 3] = 255
+                x_pos += 1
 
-            
+    # Window rendering
 
-            
-        
-    updateFromPixels(bg_texture, pixels[0].addr, cint(256), cint(256), cint(0), cint(0))
-    bg_sprite.position = vec2(-1*cint(scx)*scale_factor, -1*cint(scy)*scale_factor)
-    bg_sprite2.position = vec2(-1*cint(scx)*scale_factor, cint(256 - scy)*scale_factor)
+    # Objects rendering
+    if obj_en:
+        var possible_sprites: seq[array[4, uint8]]
+        var sprite_count: uint8
+        for sprite in sprite_attribute:
+            if obj_size:
+                discard
+            else:
+                if int16(scanline) in (int16(sprite[0]) - 16) ..< (int16(sprite[0]) - 8):
+                    possible_sprites.add(sprite)
+                    sprite_count += 1
+                    if sprite_count == 10:
+                        break
+
+        for sprite in possible_sprites:
+            if (sprite[1] == 0) or (sprite[1] >= 168):
+                # Sprite is offscreen
+                discard
+            else:
+                let tile = tiles[sprite[2]]
+                if obj_size:
+                    echo "Unhandled 8x16 sprite"
+                else:
+                    let priority = (sprite[3] and (1'u8 shl 7)) == 0
+                    let y_flip = (sprite[3] and (1'u8 shl 6)) != 0
+                    let x_flip = (sprite[3] and (1'u8 shl 5)) != 0
+                    let palette1 = (sprite[3] and (1'u8 shl 4)) != 0
+                    var color_1 = color_index1_obp0
+                    var color_2 = color_index2_obp0
+                    var color_3 = color_index3_obp0
+                    if palette1:
+                        color_1 = color_index1_obp1
+                        color_2 = color_index2_obp1
+                        color_3 = color_index3_obp1
+
+                    let tile_y = if y_flip:
+                        7 - (scanline - (sprite[0] - 16))
+                        else:
+                            scanline - (sprite[0] - 16)
+                    #echo tile_y, " ", scanline, " ", sprite[0], " ", y_flip
+                    let tile_line = tile[tile_y]
+                    var x_pos = int16(sprite[1]) - 8
+                    for i in 0 .. 7:
+                        let pixel = if x_flip:
+                            tile_line[7 - i]
+                            else:
+                                tile_line[i]
+                        if x_pos >= 0 and x_pos < 160:
+                            if pixel != 0:
+                                if ((not priority) and (screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 0] == 247'u8)) or priority:
+                                    let color = case pixel:
+                                        of 1: color_palette[color_1]
+                                        of 2: color_palette[color_2]
+                                        else: color_palette[color_3]
+                                    screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 0] = color[0]
+                                    screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 1] = color[1]
+                                    screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 2] = color[2]
+                                    screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 3] = color[3]
+                        x_pos += 1
+
+
+proc display_frame() =     
+    updateFromPixels(screen_texture, screen_buffer[0].addr, cint(160), cint(144), cint(0), cint(0))
     window.clear bg_clear_col
-    window.draw(bg_sprite)
-    window.draw(bg_sprite2)
+    window.draw(screen_sprite)
     window.display()
 
 proc parse_events*() =
     var event: Event
+    buttons_pressed.setLen(0)
     while window.pollEvent(event):
         case event.kind:
             of EventType.Closed:
                 window.close()
-                bg_texture.destroy()
-                bg_sprite.destroy()
+                screen_texture.destroy()
+                screen_sprite.destroy()
                 quit()
+            of EventType.KeyPressed:
+                case event.key.code:
+                    of KeyCode.W: buttons_pressed.add(0) # Up
+                    of KeyCode.A: buttons_pressed.add(1) # Left
+                    of KeyCode.S: buttons_pressed.add(2) # Down
+                    of KeyCode.D: buttons_pressed.add(3) # Right
+                    of KeyCode.U: buttons_pressed.add(4) # Start
+                    of KeyCode.I: buttons_pressed.add(5) # Select
+                    of KeyCode.J: buttons_pressed.add(6) # A
+                    of KeyCode.K: buttons_pressed.add(7) # B
+                    else: discard
             else: discard
+    
 
 proc trigger_stat() =
     irq_if = irq_if or 0b10'u8
@@ -229,6 +309,7 @@ proc ppu_tick*() =
             elif dot == 310:
                 mode = 0
                 lcd_stat = (lcd_stat and 0b1111100) or 0
+                draw_scanline()
                 if mode0_irq_en:
                     trigger_stat()
             elif dot == 457:
@@ -239,6 +320,7 @@ proc ppu_tick*() =
                 mode = 1
                 lcd_stat = (lcd_stat and 0b1111100) or 1
                 trigger_vblank()
+                display_frame()
                 if mode1_irq_en:
                     trigger_stat()
 
@@ -246,7 +328,6 @@ proc ppu_tick*() =
                 dot = 0
                 scanline += 1
                 if scanline == 154:
-                    render_frame()
                     scanline = 0
         if lyc == scanline:
             lcd_stat = lcd_stat or 0b100
@@ -258,5 +339,7 @@ proc ppu_tick*() =
     else:
         dot = 0
         scanline = 0
+        mode = 0
+        lcd_stat = (lcd_stat and 0b1111100) or 0
 
         
