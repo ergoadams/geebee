@@ -8,10 +8,6 @@ var wram: array[0x2000, uint8]
 
 var sb: uint8
 
-var rom_size: uint8
-var ram_size: uint8
-var cart_type: uint8
-
 proc load_bios*(bios_location: string) =
     var s = newFileStream(bios_location, fmRead)
     var bios_pos = 0'u32
@@ -27,7 +23,7 @@ proc load_game*(game_location: string) =
     echo "Game title: " & rom[0x134 .. 0x143]
     echo "Manufacturer code: " & rom[0x13F .. 0x142]
     echo "New licensee code: " & rom[0x144 .. 0x145]
-    cart_type = uint8(rom[0x147])
+    let cart_type = uint8(rom[0x147])
     mbc_type = case cart_type:
         of 0x00, 0x08, 0x09: 0
         of 0x01, 0x02, 0x03: 1
@@ -41,10 +37,32 @@ proc load_game*(game_location: string) =
     if mbc_type == 0xFF:
         echo "Unhandled mbc! " & cart_type.toHex()
     echo "Cartridge type: " & $cart_type.toHex()
-    rom_size = uint8(rom[0x148])
-    echo "ROM size: " & $rom_size.toHex()
-    ram_size = uint8(rom[0x149])
-    echo "RAM size: " & $ram_size.toHex()
+    let rom_size_t = uint8(rom[0x148])
+    rom_size = case rom_size_t:
+        of 0x00: 0x8000'u32
+        of 0x01: 0x10000'u32
+        of 0x02: 0x20000'u32
+        of 0x03: 0x40000'u32
+        of 0x04: 0x80000'u32
+        of 0x05: 0x100000'u32
+        of 0x06: 0x200000'u32
+        of 0x07: 0x400000'u32
+        of 0x08: 0x800000'u32
+        else: 
+            echo "Unhandled rom size " & rom_size_t.toHex()
+            0x00'u32
+    echo "ROM size: " & $rom_size_t.toHex()
+    let ram_size_t = uint8(rom[0x149])
+    ram_size = case ram_size_t:
+        of 0x00: 0x00'u32
+        of 0x02: 0x2000'u32
+        of 0x03: 0x8000'u32
+        of 0x04: 0x20000'u32
+        of 0x05: 0x10000'u32
+        else: 
+            echo "Unhandled ram size " & ram_size_t.toHex()
+            0x00'u32
+    echo "RAM size: " & $ram_size_t.toHex()
     echo "Is game Japanese? " & $(uint8(rom[0x149]) == 0)
 
     echo ""
@@ -53,6 +71,7 @@ proc load_game*(game_location: string) =
 
 
 proc load8*(address: uint16): uint8 =
+    timer_tick()
     if address in 0x0000'u16 .. 0x0100'u16:
         if bios_mapped:
             return bios[address]
@@ -79,6 +98,8 @@ proc load8*(address: uint16): uint8 =
         return timer_load8(offset)
     elif address == 0xFF0F'u16:
         return irq_if
+    elif address in 0xFF10'u16 .. 0xFF26'u16: # sound
+        return 0x00'u8
     elif address in 0xFF30'u16 ..< 0xFF40'u16: #sound
         return 0xFF'u8
     elif address in 0xFF40'u16 .. 0xFF4B'u16:
@@ -95,6 +116,8 @@ proc load8*(address: uint16): uint8 =
         quit("Unhandled load8 from " & address.toHex(), QuitSuccess)
 
 proc load16*(address: uint16): uint16 =
+    timer_tick()
+    timer_tick()
     if address in 0x0000'u16 .. 0x0100'u16:
         if bios_mapped:
             var value: uint16
@@ -127,6 +150,7 @@ proc load16*(address: uint16): uint16 =
         quit("Unhandled load16 from " & address.toHex(), QuitSuccess)
 
 proc store8*(address: uint16, value: uint8) =
+    timer_tick()
     if address in 0x0000'u16 ..< 0x8000'u16:
         cart_store8(address, value)
     elif address in 0x8000'u16 .. 0x9FFF'u16:

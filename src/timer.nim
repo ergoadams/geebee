@@ -1,5 +1,5 @@
 import strutils
-import irq
+import irq, ppu
 
 var timer_tima: uint8
 var timer_mod: uint8
@@ -31,19 +31,22 @@ proc timer_store8*(address: uint16, value: uint8) =
 proc timer_load8*(address: uint16): uint8 =
     case address:
         of 0: return uint8(ticks_div shr 8)
+        of 1: return timer_tima
         else:
             echo "Unhandled timer load8 addr " & address.toHex()
 
 proc timer_tick*() =
-    ticks_div += 1
+    ppu_tick()
 
-    let div_bool = ((ticks_div and diver) != 0) and timer_en
-    if prev_edge and (not div_bool):
-        if timer_tima == 0xFF:
-            timer_tima = timer_mod
-            irq_if = irq_if or 0b00100
-        timer_tima += 1       
-    prev_edge = div_bool 
+    for i in 0 ..< 4:
+        ticks_div += 1
+        let div_bool = ((ticks_div and diver) != 0) and timer_en
+        if prev_edge and (not div_bool):
+            if timer_tima == 0xFF:
+                timer_tima = timer_mod
+                irq_if = irq_if or 0b00100
+            timer_tima += 1       
+        prev_edge = div_bool 
             
             
 

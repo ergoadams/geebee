@@ -220,10 +220,11 @@ proc draw_scanline() =
                 if obj_size:
                     echo "Unhandled 8x16 sprite"
                 else:
-                    let priority = (sprite[3] and (1'u8 shl 7)) == 0
-                    let y_flip = (sprite[3] and (1'u8 shl 6)) != 0
-                    let x_flip = (sprite[3] and (1'u8 shl 5)) != 0
-                    let palette1 = (sprite[3] and (1'u8 shl 4)) != 0
+                    let attributes = sprite[3]
+                    let priority = (attributes and (1'u8 shl 7)) == 0
+                    let y_flip = (attributes and (1'u8 shl 6)) != 0
+                    let x_flip = (attributes and (1'u8 shl 5)) != 0
+                    let palette1 = (attributes and (1'u8 shl 4)) != 0
                     var color_1 = color_index1_obp0
                     var color_2 = color_index2_obp0
                     var color_3 = color_index3_obp0
@@ -244,9 +245,10 @@ proc draw_scanline() =
                             tile_line[7 - i]
                             else:
                                 tile_line[i]
-                        if x_pos >= 0 and x_pos < 160:
-                            if pixel != 0:
-                                if ((not priority) and (screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 0] == 247'u8)) or priority:
+                        
+                        if priority or ((not priority) and (screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 0] == color_palette[color_index0][0])):
+                            if x_pos >= 0 and x_pos < 160:
+                                if pixel != 0:
                                     let color = case pixel:
                                         of 1: color_palette[color_1]
                                         of 2: color_palette[color_2]
@@ -296,9 +298,9 @@ proc trigger_vblank() =
 
 proc ppu_tick*() =
     if lcd_en:   
-        dot += 1
+        dot += 4
         if scanline < 144:
-            if dot == 1:
+            if dot == 4:
                 mode = 2
                 lcd_stat = (lcd_stat and 0b1111100) or 2
                 if mode2_irq_en:
@@ -306,17 +308,17 @@ proc ppu_tick*() =
             elif dot == 80:
                 mode = 3
                 lcd_stat = (lcd_stat and 0b1111100) or 3
-            elif dot == 310:
+            elif dot == 312:
                 mode = 0
                 lcd_stat = (lcd_stat and 0b1111100) or 0
                 draw_scanline()
                 if mode0_irq_en:
                     trigger_stat()
-            elif dot == 457:
+            elif dot >= 460:
                 dot = 0
                 scanline += 1
         else:
-            if (scanline == 144) and (dot == 1):
+            if (scanline == 144) and (dot == 4):
                 mode = 1
                 lcd_stat = (lcd_stat and 0b1111100) or 1
                 trigger_vblank()
@@ -331,7 +333,7 @@ proc ppu_tick*() =
                     scanline = 0
         if lyc == scanline:
             lcd_stat = lcd_stat or 0b100
-            if lyc_irq_en and (dot == 1):
+            if lyc_irq_en and (dot == 4):
                 trigger_stat()
         else:
             lcd_stat = lcd_stat and (not 0b100'u8)
