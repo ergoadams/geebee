@@ -1,4 +1,4 @@
-import strutils, csfml
+import strutils, csfml, times, os
 import irq, joypad
 var vram: array[0x2000, uint8]
 
@@ -52,6 +52,9 @@ let videoMode = videoMode(screenWidth*scale_factor, screenHeight*scale_factor)
 let settings = contextSettings(depth=32, antialiasing=8)
 var window* = newRenderWindow(videoMode, "Geebee", settings=settings)
 let bg_clear_col = color(color_palette[0][0], color_palette[0][1], color_palette[0][2])
+
+var frametime: float = cpuTime()
+
 window.clear bg_clear_col
 window.display()
 
@@ -259,12 +262,20 @@ proc draw_scanline() =
                                     screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 3] = color[3]
                         x_pos += 1
 
+    
+
 
 proc display_frame() =     
     updateFromPixels(screen_texture, screen_buffer[0].addr, cint(160), cint(144), cint(0), cint(0))
     window.clear bg_clear_col
     window.draw(screen_sprite)
     window.display()
+    # Delay to keep constant 60FPS
+    let cur_time = cpuTime()
+    let difference = int((0.016 - (cur_time - frametime))*1000)
+    if difference > 0:
+        sleep(difference)
+    frametime = cur_time
 
 proc parse_events*() =
     var event: Event
