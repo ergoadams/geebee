@@ -1,8 +1,7 @@
 import streams, strutils
 import ppu, timer, irq, cart, joypad
 
-var bios: array[256, uint8]
-var bios_mapped: bool = true
+
 var hram: array[0x7F, uint8]
 var wram: array[0x2000, uint8]
 
@@ -72,14 +71,7 @@ proc load_game*(game_location: string) =
 
 proc load8*(address: uint16): uint8 =
     timer_tick()
-    if address in 0x0000'u16 .. 0x0100'u16:
-        if bios_mapped:
-            return bios[address]
-        else:
-            return uint8(rom[address])
-    elif address in 0x0100'u16 ..< 0x4000'u16:
-        return uint8(rom[address])
-    elif address in 0x4000'u16 ..< 0x8000'u16: # bank switched rom
+    if address in 0x0000'u16 ..< 0x8000'u16:
         return cart_load8(address)
     elif address in 0x8000'u16 ..< 0xA000'u16:
         let offset = address - 0x8000'u16
