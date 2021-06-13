@@ -329,7 +329,6 @@ proc op_sbc_a_r8() =
     if flag_c:
         c = 1'u8
     let final = regs[7] - value - c
-    pc += 1
     flag_z = final == 0
     flag_n = true
     flag_c = (uint16(value) + c) > regs[7]

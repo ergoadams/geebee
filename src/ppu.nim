@@ -96,7 +96,6 @@ proc vram_store8*(address: uint16, value: uint8) =
 proc vram_store16*(address: uint16, value: uint16) =
     vram[address + 0] = uint8(value shr 8)
     vram[address + 1] = uint8(value and 0xFF)
-    echo "vram 16"
 
 proc ppu_store8*(address: uint16, value: uint8) =
     case address:
@@ -154,6 +153,7 @@ proc ppu_load8*(address: uint16): uint8 =
         of 0x04: return scanline
         of 0x05: return lyc
         of 0x07: return bgp
+        of 0x0A: return wy
         else: 
             echo "Unhandled ppu load8 address " & address.toHex()
             return 0xFF
@@ -205,8 +205,8 @@ proc draw_scanline() =
         let y_in_tile = window_line - (window_tile_y shl 3)
         let tile_map_line = tile_maps[window_map_area][window_tile_y]
         #echo scanline, " ", window_tile_y, " ", y_in_tile
-        var x_pos = uint16(wx - 7)
-        for i in 0'u8 ..< 20'u8:
+        var x_pos = int16(wx) - 7
+        for i in 0'u8 ..< 21'u8:
             let tile_index = tile_map_line[i]
             var tile_line: array[8, uint8]
             if bg_data_area:
