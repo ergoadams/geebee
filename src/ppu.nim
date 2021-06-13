@@ -321,7 +321,6 @@ proc display_frame() =
 
 proc parse_events*() =
     var event: Event
-    buttons_pressed.setLen(0)
     while window.pollEvent(event):
         case event.kind:
             of EventType.Closed:
@@ -331,14 +330,25 @@ proc parse_events*() =
                 quit()
             of EventType.KeyPressed:
                 case event.key.code:
-                    of KeyCode.W: buttons_pressed.add(0) # Up
-                    of KeyCode.A: buttons_pressed.add(1) # Left
-                    of KeyCode.S: buttons_pressed.add(2) # Down
-                    of KeyCode.D: buttons_pressed.add(3) # Right
-                    of KeyCode.U: buttons_pressed.add(4) # Start
-                    of KeyCode.I: buttons_pressed.add(5) # Select
-                    of KeyCode.J: buttons_pressed.add(6) # A
-                    of KeyCode.K: buttons_pressed.add(7) # B
+                    of KeyCode.W: buttons_pressed = buttons_pressed or (1'u8 shl 0) # Up
+                    of KeyCode.A: buttons_pressed = buttons_pressed or (1'u8 shl 1) # Left
+                    of KeyCode.S: buttons_pressed = buttons_pressed or (1'u8 shl 2) # Down
+                    of KeyCode.D: buttons_pressed = buttons_pressed or (1'u8 shl 3) # Right
+                    of KeyCode.U: buttons_pressed = buttons_pressed or (1'u8 shl 4) # Start
+                    of KeyCode.I: buttons_pressed = buttons_pressed or (1'u8 shl 5) # Select
+                    of KeyCode.J: buttons_pressed = buttons_pressed or (1'u8 shl 6) # A
+                    of KeyCode.K: buttons_pressed = buttons_pressed or (1'u8 shl 7) # B
+                    else: discard
+            of EventType.KeyReleased:
+                case event.key.code:
+                    of KeyCode.W: buttons_pressed = buttons_pressed and (not (1'u8 shl 0)) # Up
+                    of KeyCode.A: buttons_pressed = buttons_pressed and (not (1'u8 shl 1)) # Left
+                    of KeyCode.S: buttons_pressed = buttons_pressed and (not (1'u8 shl 2)) # Down
+                    of KeyCode.D: buttons_pressed = buttons_pressed and (not (1'u8 shl 3)) # Right
+                    of KeyCode.U: buttons_pressed = buttons_pressed and (not (1'u8 shl 4)) # Start
+                    of KeyCode.I: buttons_pressed = buttons_pressed and (not (1'u8 shl 5)) # Select
+                    of KeyCode.J: buttons_pressed = buttons_pressed and (not (1'u8 shl 6)) # A
+                    of KeyCode.K: buttons_pressed = buttons_pressed and (not (1'u8 shl 7)) # B
                     else: discard
             else: discard
     

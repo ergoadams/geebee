@@ -5,7 +5,7 @@ import bus, cpu, ppu
 var running = true
 
 let bios_location = "roms/boot.gb"
-#let game_location = "roms/blargg/01.gb"
+#let game_location = "roms/blargg/interrupt_time.gb"
 #let game_location = "roms/optix/bully.gb"
 #let game_location = "roms/other/dmg-acid2.gb"
 #let game_location = "roms/mbc1/ram_256kb.gb"
