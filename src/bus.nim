@@ -91,7 +91,7 @@ proc load8*(address: uint16): uint8 =
     elif address == 0xFF0F'u16:
         return irq_if
     elif address in 0xFF10'u16 .. 0xFF26'u16: # sound
-        return 0x00'u8
+        return 0xFF'u8
     elif address in 0xFF30'u16 ..< 0xFF40'u16: #sound
         return 0xFF'u8
     elif address in 0xFF40'u16 .. 0xFF4B'u16:
@@ -129,8 +129,8 @@ proc load16*(address: uint16): uint16 =
     elif address in 0x4000'u16 ..< 0x8000'u16:
         # should check bank
         var value: uint16
-        value = value or (uint16(rom[address + 0]) shl 0)
-        value = value or (uint16(rom[address + 1]) shl 8)
+        value = value or (uint16(cart_load8(address + 0)) shl 0)
+        value = value or (uint16(cart_load8(address + 1)) shl 8)
         return value
     elif address in 0xC000'u16 ..< 0xE000'u16:
         let offset = address - 0xC000'u16
@@ -171,7 +171,8 @@ proc store8*(address: uint16, value: uint8) =
         let offset = address - 0xFF04'u16
         timer_store8(offset, value)
     elif address == 0xFF0F'u16:
-        irq_if = value
+        #echo "set irq if to ", int64(value).toBin(8)
+        irq_if = value and 0b11111'u8
     elif address in 0xFF10'u16 .. 0xFF26'u16:
         #sound
         discard
@@ -200,7 +201,8 @@ proc store8*(address: uint16, value: uint8) =
         let offset = address - 0xFF80'u16
         hram[offset] = value
     elif address == 0xFFFF'u16:
-        irq_ie = value
+        #echo "set irq ie to ", int64(value).toBin(8)
+        irq_ie = value and 0b11111'u8
     else:
         quit("Unhandled store8 address " & address.toHex() & " value " & value.toHex(), QuitSuccess)
 
@@ -214,8 +216,8 @@ proc store16*(address: uint16, value: uint16) =
         wram[offset + 1] = uint8(value and 0xFF)  
     elif address in 0xFF80'u16 .. 0xFFFE'u16:
         let offset = address - 0xFF80'u16
-        hram[offset + 0] = uint8(value shr 8) 
-        hram[offset + 1] = uint8(value and 0xFF)  
+        hram[offset + 0] = uint8(value shr 8)
+        hram[offset + 1] = uint8(value and 0xFF)
     else:
         quit("Unhandled store16 address " & address.toHex() & " value " & value.toHex(), QuitSuccess)
 

@@ -30,7 +30,9 @@ proc timer_store8*(address: uint16, value: uint8) =
 
 proc timer_load8*(address: uint16): uint8 =
     case address:
-        of 0: return uint8(ticks_div shr 8)
+        of 0: 
+            #echo uint8(ticks_div shr 8)
+            return uint8(ticks_div shr 8)
         of 1: return timer_tima
         else:
             echo "Unhandled timer load8 addr " & address.toHex()

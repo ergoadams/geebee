@@ -1,4 +1,4 @@
-import strutils, csfml, times, os
+import strutils, csfml, times, os, algorithm
 import irq, joypad
 var vram: array[0x2000, uint8]
 
@@ -205,7 +205,7 @@ proc draw_scanline() =
         let y_in_tile = window_line - (window_tile_y shl 3)
         let tile_map_line = tile_maps[window_map_area][window_tile_y]
         #echo scanline, " ", window_tile_y, " ", y_in_tile
-        var x_pos = wx - 7
+        var x_pos = uint16(wx - 7)
         for i in 0'u8 ..< 20'u8:
             let tile_index = tile_map_line[i]
             var tile_line: array[8, uint8]
@@ -232,9 +232,6 @@ proc draw_scanline() =
                     screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 3] = 255
                 x_pos += 1
         window_line += 1
-        
-
-
 
     # Objects rendering
     if obj_en:
@@ -254,64 +251,61 @@ proc draw_scanline() =
                     sprite_count += 1
                     if sprite_count == 10:
                         break
-
-        for sprite in possible_sprites:
-            if (sprite[1] == 0) or (sprite[1] >= 168):
-                # Sprite is offscreen
-                discard
-            else:
-                let attributes = sprite[3]
-                let priority = (attributes and (1'u8 shl 7)) == 0
-                let y_flip = (attributes and (1'u8 shl 6)) != 0
-                let x_flip = (attributes and (1'u8 shl 5)) != 0
-                let palette1 = (attributes and (1'u8 shl 4)) != 0
-                var color_1 = color_index1_obp0
-                var color_2 = color_index2_obp0
-                var color_3 = color_index3_obp0
-                if palette1:
-                    color_1 = color_index1_obp1
-                    color_2 = color_index2_obp1
-                    color_3 = color_index3_obp1
-
-                let tile_y = if y_flip:
-                    if obj_size:
-                        15 - (scanline - (sprite[0] - 16))
-                    else:
-                        7 - (scanline - (sprite[0] - 16))
-                    else:
-                        scanline - (sprite[0] - 16)
-                let tileindex = if obj_size:
-                    sprite[2] and 0xFE'u8
-                else:
-                    sprite[2]
-                
-                let tile = if tile_y >= 8:
-                    tiles[tileindex + 1]
-                    else:
-                        tiles[tileindex]
-                let tile_line = tile[tile_y and 7]
-                var x_pos = int16(sprite[1]) - 8
-                for i in 0 .. 7:
-                    let pixel = if x_flip:
-                        tile_line[7 - i]
+        
+        # Reverse the possible sprites, cause earlier in OAM has priority
+        possible_sprites = possible_sprites.reversed()
+        for x_pos in countdown(167'u32, 1'u32):
+            for sprite in possible_sprites:
+                if x_pos == sprite[1]:
+                    let attributes = sprite[3]
+                    let priority = (attributes and (1'u8 shl 7)) == 0
+                    let y_flip = (attributes and (1'u8 shl 6)) != 0
+                    let x_flip = (attributes and (1'u8 shl 5)) != 0
+                    let palette1 = (attributes and (1'u8 shl 4)) != 0
+                    var color_1 = color_index1_obp0
+                    var color_2 = color_index2_obp0
+                    var color_3 = color_index3_obp0
+                    if palette1:
+                        color_1 = color_index1_obp1
+                        color_2 = color_index2_obp1
+                        color_3 = color_index3_obp1
+                    let tile_y = if y_flip:
+                        if obj_size:
+                            15 - (scanline - (sprite[0] - 16))
                         else:
-                            tile_line[i]
-                    
-                    if priority or ((not priority) and (screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 0] == color_palette[color_index0][0])):
-                        if x_pos >= 0 and x_pos < 160:
-                            if pixel != 0:
-                                let color = case pixel:
-                                    of 1: color_palette[color_1]
-                                    of 2: color_palette[color_2]
-                                    else: color_palette[color_3]
-                                screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 0] = color[0]
-                                screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 1] = color[1]
-                                screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 2] = color[2]
-                                screen_buffer[uint32(scanline)*160*4 + uint32(x_pos)*4 + 3] = color[3]
-                    x_pos += 1
+                            7 - (scanline - (sprite[0] - 16))
+                        else:
+                            scanline - (sprite[0] - 16)
 
-    
-
+                    let tileindex = if obj_size:
+                        sprite[2] and 0xFE'u8
+                        else:
+                            sprite[2]
+                        
+                    let tile = if tile_y >= 8:
+                        tiles[tileindex + 1]
+                        else:
+                            tiles[tileindex]
+                    let tile_line = tile[tile_y and 7]
+                    var line_x = int16(sprite[1]) - 8
+                    for i in 0 .. 7:
+                        if line_x >= 0 and line_x < 160:
+                            let pixel = if x_flip:
+                                tile_line[7 - i]
+                                else:
+                                    tile_line[i]
+                            
+                            if priority or ((not priority) and (screen_buffer[uint32(scanline)*160*4 + uint32(line_x)*4 + 0] == color_palette[color_index0][0])):
+                                    if pixel != 0:
+                                        let color = case pixel:
+                                            of 1: color_palette[color_1]
+                                            of 2: color_palette[color_2]
+                                            else: color_palette[color_3]
+                                        screen_buffer[uint32(scanline)*160*4 + uint32(line_x)*4 + 0] = color[0]
+                                        screen_buffer[uint32(scanline)*160*4 + uint32(line_x)*4 + 1] = color[1]
+                                        screen_buffer[uint32(scanline)*160*4 + uint32(line_x)*4 + 2] = color[2]
+                                        screen_buffer[uint32(scanline)*160*4 + uint32(line_x)*4 + 3] = color[3]
+                        line_x += 1
 
 proc display_frame() =     
     updateFromPixels(screen_texture, screen_buffer[0].addr, cint(160), cint(144), cint(0), cint(0))

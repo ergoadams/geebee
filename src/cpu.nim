@@ -28,14 +28,14 @@ proc fetch_opcode(pc: uint16): uint8 =
         echo "PC " & pc.toHex() & " opcode " & value.toHex() & " regs " & $regs
     return value
 
-proc get_reg(index: uint8): uint8 =
-    if index == 6:
-        return load8((uint16(regs[4]) shl 8) or uint16(regs[5]))
-    else:
-        return regs[index]
-
 proc get_hl(): uint16 =
     return (uint16(regs[4]) shl 8) or uint16(regs[5])
+
+proc get_reg(index: uint8): uint8 =
+    if index == 6:
+        return load8(get_hl())
+    else:
+        return regs[index]
 
 proc set_reg(index: uint8, value: uint8) =
     if index == 6:
@@ -68,8 +68,6 @@ proc op_ld_r16u16() =
             set_reg(5, uint8(value and 0xFF))
         else: 
             sp = value
-            timer_tick()
-            timer_tick()
 
 proc op_ld_r8r8() =
     let dest = (opcode shr 3) and 7
@@ -461,8 +459,8 @@ proc op_jp_hl() =
 proc op_call_u16() =
     let address = load16(pc)
     pc += 2
-    sp -= 1
     timer_tick()
+    sp -= 1
     store8(sp, uint8(pc shr 8)) 
     sp -= 1
     store8(sp, uint8(pc and 0xFF))
@@ -960,18 +958,25 @@ proc trigger_irq() =
     sp -= 1
     store8(sp, uint8(pc and 0xFF))
     if (cause and 0b00001) != 0:
+        irq_if = irq_if and (not 0b00001'u8)
         pc = 0x0040'u16
     elif (cause and 0b00010) != 0:
+        irq_if = irq_if and (not 0b00010'u8)
         pc = 0x0048'u16
     elif (cause and 0b00100) != 0:
+        irq_if = irq_if and (not 0b00100'u8)
         pc = 0x0050'u16
     elif (cause and 0b01000) != 0:
+        irq_if = irq_if and (not 0b01000'u8)
         pc = 0x0058'u16
     else:
+        irq_if = irq_if and (not 0b10000'u8)
         pc = 0x0060'u16
 
     #echo "IRQ cause " & $cause
-    irq_ime = false
+    op_di()
+    timer_tick()
+    timer_tick()
 
 proc cpu_tick*() =
     if not halted:

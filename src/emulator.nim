@@ -5,11 +5,11 @@ import bus, cpu, ppu
 var running = true
 
 let bios_location = "roms/boot.gb"
-#let game_location = "roms/blargg/instr_timing.gb"
-let game_location = "roms/optix/fairylake.gb"
+#let game_location = "roms/blargg/01.gb"
+#let game_location = "roms/optix/bully.gb"
 #let game_location = "roms/other/dmg-acid2.gb"
 #let game_location = "roms/mbc1/ram_256kb.gb"
-#let game_location = "roms/gargoyle.gb"
+let game_location = "roms/sml.gb"
 
 load_bios(bios_location)
 load_game(game_location)
@@ -28,4 +28,3 @@ while running:
 # TODO:
 #   Emulate haltbug
 #   Interrupt timing
-#   instruction timing off by 2
