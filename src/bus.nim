@@ -7,6 +7,8 @@ var wram: array[0x2000, uint8]
 
 var sb: uint8
 
+var if_irq*: bool
+
 proc load_bios*(bios_location: string) =
     var s = newFileStream(bios_location, fmRead)
     var bios_pos = 0'u32
@@ -75,14 +77,23 @@ proc load8*(address: uint16): uint8 =
         return cart_load8(address)
     elif address in 0x8000'u16 ..< 0xA000'u16:
         let offset = address - 0x8000'u16
-        return vram_load8(offset)
+        if mode != 3:
+            return vram_load8(offset)
+        else:
+            return 0xFF'u8
     elif address in 0xA000'u16 ..< 0xC000'u16:
         return cart_load8(address)
     elif address in 0xC000'u16 ..< 0xE000'u16:
         let offset = address - 0xC000'u16
         return wram[offset]
+    elif address in 0xE000'u16 ..< 0xFE00'u16:
+        let offset = address - 0xE000'u16
+        return wram[offset]
     elif address in 0xFE00'u16 ..< 0xFEA0'u16:
-        return oam_load(address - 0xFE00'u16)
+        if (mode != 3) or (mode != 2):
+            return oam_load(address - 0xFE00'u16)
+        else:
+            return 0xFF'u8
     elif address == 0xFF00'u16:
         return pad_load8()
     elif address in 0xFF04'u16 ..< 0xFF08'u16:
@@ -147,14 +158,19 @@ proc store8*(address: uint16, value: uint8) =
         cart_store8(address, value)
     elif address in 0x8000'u16 .. 0x9FFF'u16:
         let offset = address - 0x8000
-        vram_store8(offset, value)
+        if mode != 3:
+            vram_store8(offset, value)
     elif address in 0xA000'u16 ..< 0xC000'u16:
         cart_store8(address, value)
     elif address in 0xC000'u16 ..< 0xE000'u16:
         let offset = address - 0xC000'u16
         wram[offset] = value
+    elif address in 0xE000'u16 ..< 0xFE00'u16:
+        let offset = address - 0xE000'u16
+        wram[offset] = value
     elif address in 0xFE00'u16 ..< 0xFEA0'u16:
-        oam_write(address - 0xFE00'u16, value)
+        if (mode != 3) and (mode != 2):
+            oam_write(address - 0xFE00'u16, value)
     elif address in 0xFEA0'u16 .. 0xFEFF'u16:
         discard
     elif address == 0xFF00:
@@ -172,7 +188,9 @@ proc store8*(address: uint16, value: uint8) =
         timer_store8(offset, value)
     elif address == 0xFF0F'u16:
         #echo "set irq if to ", int64(value).toBin(8)
-        irq_if = value and 0b11111'u8
+        irq_if = value or 0b11100000'u8
+        if irq_ime:
+            if_irq = true
     elif address in 0xFF10'u16 .. 0xFF26'u16:
         #sound
         discard

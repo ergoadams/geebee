@@ -16,7 +16,7 @@ var lcd_stat: uint8
 
 var dot: uint32
 var scanline: uint8
-var mode: uint8
+var mode*: uint8
 var lyc_irq_en: bool
 var mode2_irq_en: bool
 var mode1_irq_en: bool
@@ -314,7 +314,7 @@ proc display_frame() =
     window.display()
     # Delay to keep constant 60FPS
     let cur_time = cpuTime()
-    let difference = int((0.016 - (cur_time - frametime))*1000)
+    let difference = int((0.015 - (cur_time - frametime))*1000)
     if difference > 0:
         sleep(difference)
     frametime = cur_time

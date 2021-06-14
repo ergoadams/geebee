@@ -1,6 +1,7 @@
 var irq_ie*: uint8
 var irq_if*: uint8
 var irq_ime*: bool
+var first_irq_cycle*: bool
 var cause*: uint8
 
 proc check_irq*(): bool =

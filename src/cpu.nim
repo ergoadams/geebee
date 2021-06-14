@@ -17,6 +17,9 @@ if trace:
     trace_file = open("trace.txt", fmWrite)
 
 var halted: bool
+var haltbug: bool
+var haltbug_pc: uint16
+var no_irq: bool
 
 
 # Helper functions
@@ -513,6 +516,7 @@ proc op_reti() =
     pc = pc or (uint16(load8(sp)) shl 8)
     sp += 1
     irq_ime = true
+    first_irq_cycle = true
     timer_tick()
 
 # POP
@@ -640,6 +644,7 @@ proc op_di() =
 # EI
 proc op_ei() =
     irq_ime = true
+    first_irq_cycle = true
 
 # HALT
 proc op_halt() =
@@ -976,22 +981,44 @@ proc trigger_irq() =
     op_di()
     timer_tick()
     timer_tick()
+    timer_tick()
 
 proc cpu_tick*() =
     if not halted:
+        if haltbug:
+            haltbug_pc = pc
         opcode = fetch_opcode(pc)
         pc += 1
         execute_opcode()
-        
+        if haltbug:
+            pc = haltbug_pc
+            haltbug = false
+
     else:
         timer_tick()
+
         if not irq_ime:
             if (irq_if and irq_ie) != 0:
                 halted = false
-        else:
-            halted = false
-        #    echo "haltbug?"
+                if not no_irq:
+                    haltbug = true
+                no_irq = false
+            else:
+                no_irq = true
+        
     
     if check_irq():
         halted = false
+        no_irq = false
+        if first_irq_cycle:
+            first_irq_cycle = false
+        else:
+            trigger_irq()
+    elif if_irq:
+        if_irq = false
         trigger_irq()
+    else:
+        if first_irq_cycle:
+            first_irq_cycle = false
+
+        
