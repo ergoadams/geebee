@@ -52,7 +52,7 @@ var screenHeight: cint = 144
 let scale_factor: cint = 3
 let videoMode = videoMode(screenWidth*scale_factor, screenHeight*scale_factor)
 let settings = contextSettings(depth=32, antialiasing=8)
-var window* = newRenderWindow(videoMode, "Geebee", settings=settings)
+var window* = newRenderWindow(videoMode, "geebee", settings=settings)
 let bg_clear_col = color(color_palette[0][0], color_palette[0][1], color_palette[0][2])
 
 var frametime: float = cpuTime()
