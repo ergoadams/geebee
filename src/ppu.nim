@@ -21,6 +21,7 @@ var lyc_irq_en: bool
 var mode2_irq_en: bool
 var mode1_irq_en: bool
 var mode0_irq_en: bool
+var prev_stat: bool
 
 var wy: uint8
 var wx: uint8
@@ -128,12 +129,12 @@ proc ppu_store8*(address: uint16, value: uint8) =
             color_index2 = (value and (0b11'u8 shl 4)) shr 4
             color_index3 = (value and (0b11'u8 shl 6)) shr 6
         of 0x08:
-            obp0 = value and (not 0b11'u8)
+            obp0 = value
             color_index1_obp0 = (value and (0b11'u8 shl 2)) shr 2
             color_index2_obp0 = (value and (0b11'u8 shl 4)) shr 4
             color_index3_obp0 = (value and (0b11'u8 shl 6)) shr 6
         of 0x09:
-            obp1 = value and (not 0b11'u8)
+            obp1 = value
             color_index1_obp1 = (value and (0b11'u8 shl 2)) shr 2
             color_index2_obp1 = (value and (0b11'u8 shl 4)) shr 4
             color_index3_obp1 = (value and (0b11'u8 shl 6)) shr 6
@@ -153,7 +154,10 @@ proc ppu_load8*(address: uint16): uint8 =
         of 0x04: return scanline
         of 0x05: return lyc
         of 0x07: return bgp
+        of 0x08: return obp0
+        of 0x09: return obp1
         of 0x0A: return wy
+        of 0x0B: return wx
         else: 
             echo "Unhandled ppu load8 address " & address.toHex()
             return 0xFF
@@ -365,9 +369,7 @@ proc ppu_tick*() =
         if scanline < 144:
             if dot == 4:
                 mode = 2
-                lcd_stat = (lcd_stat and 0b1111100) or 2
-                if mode2_irq_en:
-                    trigger_stat()
+                lcd_stat = (lcd_stat and 0b1111100) or 2             
             elif dot == 80:
                 mode = 3
                 lcd_stat = (lcd_stat and 0b1111100) or 3
@@ -375,8 +377,6 @@ proc ppu_tick*() =
                 mode = 0
                 lcd_stat = (lcd_stat and 0b1111100) or 0
                 draw_scanline()
-                if mode0_irq_en:
-                    trigger_stat()
             elif dot >= 460:
                 dot = 0
                 scanline += 1
@@ -386,8 +386,6 @@ proc ppu_tick*() =
                 lcd_stat = (lcd_stat and 0b1111100) or 1
                 trigger_vblank()
                 display_frame()
-                if mode1_irq_en:
-                    trigger_stat()
 
             if dot == 456:
                 dot = 0
@@ -395,12 +393,16 @@ proc ppu_tick*() =
                 if scanline == 154:
                     scanline = 0
                     window_line = 0
+
         if lyc == scanline:
             lcd_stat = lcd_stat or 0b100
-            if lyc_irq_en and (dot == 4):
-                trigger_stat()
         else:
             lcd_stat = lcd_stat and (not 0b100'u8)
+
+        let cur_stat = (mode2_irq_en and (mode == 2)) or (mode0_irq_en and (mode == 0)) or (mode1_irq_en and (mode == 1)) or (lyc_irq_en and (lyc == scanline))
+        if not prev_stat and cur_stat:
+            trigger_stat()
+        prev_stat = cur_stat
 
     else:
         dot = 0
@@ -409,4 +411,5 @@ proc ppu_tick*() =
         mode = 0
         lcd_stat = (lcd_stat and 0b1111100) or 0
 
+    
         

@@ -6,8 +6,8 @@ var cause*: uint8
 
 proc check_irq*(): bool =
     if irq_ime:
-        if (irq_ie and irq_if) != 0:
-            cause = irq_ie and irq_if
+        if ((irq_ie and irq_if) and 0x1F) != 0:
+            cause = (irq_ie and irq_if) and 0x1F
             return true
     else:
         return false

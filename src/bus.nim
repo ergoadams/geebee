@@ -220,7 +220,7 @@ proc store8*(address: uint16, value: uint8) =
         hram[offset] = value
     elif address == 0xFFFF'u16:
         #echo "set irq ie to ", int64(value).toBin(8)
-        irq_ie = value and 0b11111'u8
+        irq_ie = value
     else:
         quit("Unhandled store8 address " & address.toHex() & " value " & value.toHex(), QuitSuccess)
 
@@ -238,4 +238,8 @@ proc store16*(address: uint16, value: uint16) =
         hram[offset + 1] = uint8(value and 0xFF)
     else:
         quit("Unhandled store16 address " & address.toHex() & " value " & value.toHex(), QuitSuccess)
+
+proc corrupt_oam*() =
+    if mode == 2:
+        oam_write(0, 0)
 

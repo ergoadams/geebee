@@ -6,10 +6,10 @@ var running = true
 
 let bios_location = "roms/bootix.gb"
 #let game_location = "roms/blargg/halt_bug.gb"
-#let game_location = "roms/optix/bully.gb"
-let game_location = "roms/other/numism.gb"
+#let game_location = "roms/optix/statcount-auto.gb"
+#let game_location = "roms/other/numism.gb"
 #let game_location = "roms/mbc1/ram_256kb.gb"
-#let game_location = "roms/gargoyle.gb"
+let game_location = "roms/pokemon_blue.gb"
 
 load_bios(bios_location)
 load_game(game_location)

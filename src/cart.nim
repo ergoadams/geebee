@@ -55,8 +55,24 @@ proc cart_load8*(address: uint16): uint8 =
             else:
                 echo "Unhandled mbc1 cart read address " & address.toHex()
         of 3:
-            if address in 0x4000'u16 ..< 0x8000'u16:
-                return uint8(rom[address + 0x4000*(rom_bank - 1)])
+            if address in 0x0000'u16 .. 0x0100'u16:
+                if bios_mapped:
+                    return bios[address]
+                else:
+                    return uint8(rom[address])
+            elif address in 0x0101'u16 ..< 0x4000'u16:
+                return uint8(rom[address])
+            elif address in 0x4000'u16 ..< 0x8000'u16:
+                let offset = address - 0x4000'u16
+                return uint8(rom[offset + 0x4000*rom_bank])
+            elif address in 0xA000'u16 ..< 0xC000'u16:
+                let offset = address - 0xA000'u16
+                if ram_bank in 0x00'u8 .. 0x03'u8:
+                    return ram[offset + 0x2000'u16*ram_bank]
+                elif ram_bank in 0x08'u8 .. 0x0C'u8:
+                    echo "Unhandled RTC read"
+                else:
+                    echo "Weird mbc3 ram bank ", ram_bank
             else:
                 echo "Unhandled mbc3 cart read address " & address.toHex()
         else:
@@ -113,6 +129,18 @@ proc cart_store8*(address: uint16, value: uint8) =
                 rom_bank = value
                 if value == 0:
                     rom_bank = 1
+            elif address in 0x4000'u16 ..< 0x6000'u16:
+                ram_bank = value
+            elif address in 0xA000'u16 ..< 0xC000'u16:
+                let offset = address - 0xA000'u16
+                if ram_bank in 0x00'u8 .. 0x03'u8:
+                    ram[offset + 0x2000'u16*ram_bank] = value
+                elif ram_bank in 0x08'u8 .. 0x0C'u8:
+                    echo "Unhandled RTC write value ", value.toHex()
+                else:
+                    echo "Weird mbc3 ram bank ", ram_bank
+            elif address in 0x6000'u16 ..< 0x8000'u16:
+                echo "Unhandled latch clock write ", address.toHex(), " ", value.toHex()
             else:
                 echo "Unhandled mbc3 store8 addr " & address.toHex() & " value " & value.toHex()
         else:

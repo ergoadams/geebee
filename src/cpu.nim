@@ -377,6 +377,8 @@ proc op_inc_r16() =
             regs[3] = uint8(temp and 0xFF)
         of 2:
             temp = (uint16(regs[4]) shl 8) or uint16(regs[5])
+            if regs[4] == 0xFE'u8:
+                corrupt_oam()
             temp += 1
             regs[4] = uint8(temp shr 8)
             regs[5] = uint8(temp and 0xFF)
@@ -1010,15 +1012,13 @@ proc cpu_tick*() =
     if check_irq():
         halted = false
         no_irq = false
-        if first_irq_cycle:
-            first_irq_cycle = false
-        else:
+        if not first_irq_cycle:
             trigger_irq()
-    elif if_irq:
+    if if_irq:
         if_irq = false
         trigger_irq()
-    else:
-        if first_irq_cycle:
-            first_irq_cycle = false
+
+    if first_irq_cycle:
+        first_irq_cycle = false
 
         
