@@ -148,7 +148,7 @@ proc ppu_store8*(address: uint16, value: uint8) =
 proc ppu_load8*(address: uint16): uint8 =
     case address:
         of 0x00: return lcdc
-        of 0x01: return lcd_stat
+        of 0x01: return lcd_stat or 0b10000000'u8
         of 0x02: return scy
         of 0x03: return scx
         of 0x04: return scanline

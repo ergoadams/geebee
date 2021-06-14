@@ -6,6 +6,7 @@ var hram: array[0x7F, uint8]
 var wram: array[0x2000, uint8]
 
 var sb: uint8
+var sc: uint8
 
 var if_irq*: bool
 
@@ -96,6 +97,8 @@ proc load8*(address: uint16): uint8 =
             return 0xFF'u8
     elif address == 0xFF00'u16:
         return pad_load8()
+    elif address == 0xFF02'u16:
+        return sc or 0b01111110
     elif address in 0xFF04'u16 ..< 0xFF08'u16:
         let offset = address - 0xFF04'u16
         return timer_load8(offset)
@@ -109,6 +112,8 @@ proc load8*(address: uint16): uint8 =
         let offset = address - 0xFF40'u16
         return ppu_load8(offset)
     elif address == 0xFF4D'u16:
+        return 0xFF'u8
+    elif address in 0xFF00'u16 ..< 0xFF80'u16:
         return 0xFF'u8
     elif address in 0xFF80'u16 .. 0xFFFE'u16:
         let offset = address - 0xFF80'u16
@@ -178,6 +183,7 @@ proc store8*(address: uint16, value: uint8) =
     elif address == 0xFF01: 
         sb = value
     elif address == 0xFF02:
+        sc = value
         if value == 0x81:
             write(stdout, char(sb))
         else:
@@ -222,7 +228,7 @@ proc store8*(address: uint16, value: uint8) =
         #echo "set irq ie to ", int64(value).toBin(8)
         irq_ie = value
     else:
-        quit("Unhandled store8 address " & address.toHex() & " value " & value.toHex(), QuitSuccess)
+        echo "Unhandled store8 address " & address.toHex() & " value " & value.toHex()
 
 proc store16*(address: uint16, value: uint16) =
     if address in 0x8000'u16 .. 0x9FFF'u16:

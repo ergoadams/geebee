@@ -4,12 +4,12 @@ var action_mode*: bool
 var direction_mode*: bool
 var buttons_pressed*: uint8
 proc pad_store8*(value: uint8) =
-    joyp = (value and 0b11110000'u8) or (joyp and 0b1111'u8)
+    joyp = value
     action_mode = (joyp and (1'u8 shl 5)) == 0
     direction_mode = (joyp and (1'u8 shl 4)) == 0
 
 proc pad_load8*(): uint8 =
-    joyp = joyp or 0b1111
+    joyp = joyp or 0b11001111
     if direction_mode:
         if (buttons_pressed and (1'u8 shl 0)) != 0: joyp = joyp and (not (1'u8 shl 2)) # Up
         if (buttons_pressed and (1'u8 shl 1)) != 0: joyp = joyp and (not (1'u8 shl 1)) # Left
