@@ -1,5 +1,5 @@
 import strutils
-import irq, ppu
+import irq, ppu, apu
 
 var timer_tima: uint8
 var timer_mod: uint8
@@ -38,6 +38,7 @@ proc timer_load8*(address: uint16): uint8 =
 
 proc timer_tick*() =
     ppu_tick()
+    apu_tick()
 
     for i in 0 ..< 4:
         ticks_div += 1

@@ -1,5 +1,5 @@
 import strutils, csfml, times, os, algorithm
-import irq, joypad
+import irq, joypad, apu
 var vram: array[0x2000, uint8]
 
 var lcdc: uint8
@@ -46,6 +46,7 @@ var tile_maps: array[2, array[32, array[32, uint8]]]
 var obp0: uint8
 var obp1: uint8
 var sprite_attribute: array[40, array[4, uint8]]
+var sprite_count: uint16
 # CSFML init
 var screenWidth: cint = 160
 var screenHeight: cint = 144
@@ -55,6 +56,8 @@ let settings = contextSettings(depth=32, antialiasing=8)
 var window* = newRenderWindow(videoMode, "geebee", settings=settings)
 let bg_clear_col = color(color_palette[0][0], color_palette[0][1], color_palette[0][2])
 
+var mode_cycles: uint16
+var possible_sprites: seq[array[4, uint8]]
 var frametime: float = cpuTime()
 
 window.clear bg_clear_col
@@ -238,24 +241,7 @@ proc draw_scanline() =
         window_line += 1
 
     # Objects rendering
-    if obj_en:
-        var possible_sprites: seq[array[4, uint8]]
-        var sprite_count: uint8
-        if obj_size:
-            for sprite in sprite_attribute:
-                if int16(scanline) in (int16(sprite[0]) - 16) ..< (int16(sprite[0])):
-                    possible_sprites.add(sprite)
-                    sprite_count += 1
-                    if sprite_count == 10:
-                        break
-        else:
-            for sprite in sprite_attribute:
-                if int16(scanline) in (int16(sprite[0]) - 16) ..< (int16(sprite[0]) - 8):
-                    possible_sprites.add(sprite)
-                    sprite_count += 1
-                    if sprite_count == 10:
-                        break
-        
+    if obj_en:    
         # Reverse the possible sprites, cause earlier in OAM has priority
         possible_sprites = possible_sprites.reversed()
         for x_pos in countdown(167'u32, 1'u32):
@@ -310,6 +296,7 @@ proc draw_scanline() =
                                         screen_buffer[uint32(scanline)*160*4 + uint32(line_x)*4 + 2] = color[2]
                                         screen_buffer[uint32(scanline)*160*4 + uint32(line_x)*4 + 3] = color[3]
                         line_x += 1
+    possible_sprites.setLen(0)
 
 proc display_frame() =     
     updateFromPixels(screen_texture, screen_buffer[0].addr, cint(160), cint(144), cint(0), cint(0))
@@ -331,6 +318,7 @@ proc parse_events*() =
                 window.close()
                 screen_texture.destroy()
                 screen_sprite.destroy()
+                apu_destroy()
                 quit()
             of EventType.KeyPressed:
                 case event.key.code:
@@ -363,53 +351,86 @@ proc trigger_stat() =
 proc trigger_vblank() =
     irq_if = irq_if or 0b1'u8
 
+proc set_mode(mode_val: uint8) =
+    mode = mode_val
+    lcd_stat = (lcd_stat and 0b1111100) or mode
+    mode_cycles = case mode:
+        of 2: 80'u16
+        of 3: 169'u16 + 8*sprite_count
+        of 0: 207'u16 - 8*sprite_count # TODO: a lot more than that (https://gbdev.io/pandocs/STAT.html)
+        of 1: 456'u16
+        of 4:
+            lcd_stat = (lcd_stat and 0b1111100) or 0
+            mode = 2
+            79'u16
+        else: 0'u16
+
+proc oam_search() =
+    sprite_count = 0
+    if obj_size:
+        for sprite in sprite_attribute:
+            if int16(scanline) in (int16(sprite[0]) - 16) ..< (int16(sprite[0])):
+                possible_sprites.add(sprite)
+                sprite_count += 1
+                if sprite_count == 10:
+                    break
+    else:
+        for sprite in sprite_attribute:
+            if int16(scanline) in (int16(sprite[0]) - 16) ..< (int16(sprite[0]) - 8):
+                possible_sprites.add(sprite)
+                sprite_count += 1
+                if sprite_count == 10:
+                    break
+
 proc ppu_tick*() =
     if lcd_en:   
-        dot += 4
-        if scanline < 144:
-            if dot == 4:
-                mode = 2
-                lcd_stat = (lcd_stat and 0b1111100) or 2             
-            elif dot == 80:
-                mode = 3
-                lcd_stat = (lcd_stat and 0b1111100) or 3
-            elif dot == 312:
-                mode = 0
-                lcd_stat = (lcd_stat and 0b1111100) or 0
-                draw_scanline()
-            elif dot >= 460:
-                dot = 0
-                scanline += 1
-        else:
-            if (scanline == 144) and (dot == 4):
-                mode = 1
-                lcd_stat = (lcd_stat and 0b1111100) or 1
-                trigger_vblank()
-                display_frame()
+        for i in 0 ..< 4:
+            if scanline < 144:
+                if (mode_cycles == 0) and (mode == 0):
+                    set_mode(2)
+                elif (mode_cycles == 0) and (mode == 2):
+                    oam_search()
+                    set_mode(3)
+                elif (mode_cycles == 0) and (mode == 3):
+                    set_mode(0)
+                    draw_scanline()
+                    scanline += 1                    
+            else:
+                if (scanline == 144) and (mode_cycles == 0) and (mode == 0):
+                    set_mode(1)
+                    trigger_vblank()
+                    display_frame()
+                elif (mode_cycles == 0) and (mode == 1):
+                    set_mode(1)
+                    scanline += 1
+                    if scanline == 154:
+                        scanline = 0
+                        window_line = 0
+                        set_mode(2)
+                        for i in 0 ..< screen_buffer.len():
+                            screen_buffer[i] = 0'u8
 
-            if dot == 456:
-                dot = 0
-                scanline += 1
-                if scanline == 154:
-                    scanline = 0
-                    window_line = 0
+            mode_cycles -= 1
 
         if lyc == scanline:
             lcd_stat = lcd_stat or 0b100
         else:
             lcd_stat = lcd_stat and (not 0b100'u8)
 
+        # Should we trigger stat irq?
         let cur_stat = (mode2_irq_en and (mode == 2)) or (mode0_irq_en and (mode == 0)) or (mode1_irq_en and (mode == 1)) or (lyc_irq_en and (lyc == scanline))
         if not prev_stat and cur_stat:
             trigger_stat()
         prev_stat = cur_stat
 
+        # Decrement remaining cycles in current mode by one
+        
+
     else:
         dot = 0
         scanline = 0
         window_line = 0
-        mode = 0
-        lcd_stat = (lcd_stat and 0b1111100) or 0
+        set_mode(4)
 
     
         

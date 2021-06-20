@@ -1,5 +1,5 @@
 import streams, strutils
-import ppu, timer, irq, cart, joypad
+import ppu, timer, irq, cart, joypad, apu
 
 
 var hram: array[0x7F, uint8]
@@ -154,6 +154,12 @@ proc load16*(address: uint16): uint16 =
         value = value or (uint16(wram[offset + 0]) shl 0)
         value = value or (uint16(wram[offset + 1]) shl 8)
         return value
+    elif address in 0xFF80'u16 ..< 0xFFFF'u16:
+        let offset = address - 0xFF80'u16
+        var value: uint16
+        value = value or (uint16(hram[offset + 0]) shl 0)
+        value = value or (uint16(hram[offset + 1]) shl 8)
+        return value
     else:
         quit("Unhandled load16 from " & address.toHex(), QuitSuccess)
 
@@ -197,11 +203,10 @@ proc store8*(address: uint16, value: uint8) =
         irq_if = value or 0b11100000'u8
         if irq_ime:
             if_irq = true
-    elif address in 0xFF10'u16 .. 0xFF26'u16:
-        #sound
-        discard
+    elif address in 0xFF10'u16 .. 0xFF26'u16: #sound
+        apu_store8(address, value)
     elif address in 0xFF30'u16 ..< 0xFF40'u16: #sound
-        discard
+        apu_store8(address, value)
     elif address in 0xFF40'u16 .. 0xFF4B'u16:
         let offset = address - 0xFF40'u16
         if offset == 6:
