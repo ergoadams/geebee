@@ -105,9 +105,9 @@ proc load8*(address: uint16): uint8 =
     elif address == 0xFF0F'u16:
         return irq_if
     elif address in 0xFF10'u16 .. 0xFF26'u16: # sound
-        return 0xFF'u8
+        return apu_load8(address)
     elif address in 0xFF30'u16 ..< 0xFF40'u16: #sound
-        return 0xFF'u8
+        return apu_load8(address)
     elif address in 0xFF40'u16 .. 0xFF4B'u16:
         let offset = address - 0xFF40'u16
         return ppu_load8(offset)

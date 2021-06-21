@@ -384,33 +384,32 @@ proc oam_search() =
 
 proc ppu_tick*() =
     if lcd_en:   
-        for i in 0 ..< 4:
-            if scanline < 144:
-                if (mode_cycles == 0) and (mode == 0):
+        if scanline < 144:
+            if (mode_cycles == 0) and (mode == 0):
+                set_mode(2)
+            elif (mode_cycles == 0) and (mode == 2):
+                oam_search()
+                set_mode(3)
+            elif (mode_cycles == 0) and (mode == 3):
+                set_mode(0)
+                draw_scanline()
+                scanline += 1                    
+        else:
+            if (scanline == 144) and (mode_cycles == 0) and (mode == 0):
+                set_mode(1)
+                trigger_vblank()
+                display_frame()
+            elif (mode_cycles == 0) and (mode == 1):
+                set_mode(1)
+                scanline += 1
+                if scanline == 154:
+                    scanline = 0
+                    window_line = 0
                     set_mode(2)
-                elif (mode_cycles == 0) and (mode == 2):
-                    oam_search()
-                    set_mode(3)
-                elif (mode_cycles == 0) and (mode == 3):
-                    set_mode(0)
-                    draw_scanline()
-                    scanline += 1                    
-            else:
-                if (scanline == 144) and (mode_cycles == 0) and (mode == 0):
-                    set_mode(1)
-                    trigger_vblank()
-                    display_frame()
-                elif (mode_cycles == 0) and (mode == 1):
-                    set_mode(1)
-                    scanline += 1
-                    if scanline == 154:
-                        scanline = 0
-                        window_line = 0
-                        set_mode(2)
-                        for i in 0 ..< screen_buffer.len():
-                            screen_buffer[i] = 0'u8
+                    for i in 0 ..< screen_buffer.len():
+                        screen_buffer[i] = 0'u8
 
-            mode_cycles -= 1
+        mode_cycles -= 1
 
         if lyc == scanline:
             lcd_stat = lcd_stat or 0b100
@@ -421,9 +420,8 @@ proc ppu_tick*() =
         let cur_stat = (mode2_irq_en and (mode == 2)) or (mode0_irq_en and (mode == 0)) or (mode1_irq_en and (mode == 1)) or (lyc_irq_en and (lyc == scanline))
         if not prev_stat and cur_stat:
             trigger_stat()
-        prev_stat = cur_stat
+            prev_stat = cur_stat
 
-        # Decrement remaining cycles in current mode by one
         
 
     else:

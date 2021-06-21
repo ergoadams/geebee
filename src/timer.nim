@@ -37,10 +37,9 @@ proc timer_load8*(address: uint16): uint8 =
             echo "Unhandled timer load8 addr " & address.toHex()
 
 proc timer_tick*() =
-    ppu_tick()
-    apu_tick()
-
     for i in 0 ..< 4:
+        ppu_tick()
+        apu_tick()
         ticks_div += 1
         let div_bool = ((ticks_div and diver) != 0) and timer_en
         if prev_edge and (not div_bool):
